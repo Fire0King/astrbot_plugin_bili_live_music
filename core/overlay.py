@@ -236,7 +236,8 @@ class OverlayServer:
 
         if not self._authorized(request):
             return web.Response(status=401, text="Unauthorized: invalid token")
-        return web.Response(text=self._read_page("panel.html"), content_type="text/html", charset="utf-8")
+        html = self._read_page("panel.html").replace("__BASE_PATH__", self.settings.base_path)
+        return web.Response(text=html, content_type="text/html", charset="utf-8")
 
     async def _handle_panel(self, request: Any):
         return await self._handle_index(request)

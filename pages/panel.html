@@ -122,8 +122,8 @@
 <script>
 (() => {
   const TOKEN = new URLSearchParams(location.search).get("token") || "";
-  const API = (name) => `/bili-live-music/api/action/${name}?token=${encodeURIComponent(TOKEN)}`;
-  const STATE_URL = `/bili-live-music/api/state?token=${encodeURIComponent(TOKEN)}`;
+  const API = (name) => `__BASE_PATH__/api/action/${name}?token=${encodeURIComponent(TOKEN)}`;
+  const STATE_URL = `__BASE_PATH__/api/state?token=${encodeURIComponent(TOKEN)}`;
   let state = null;
 
   const $ = (id) => document.getElementById(id);
@@ -251,7 +251,7 @@
   let ws = null;
   function connectWs() {
     const proto = location.protocol === "https:" ? "wss://" : "ws://";
-    ws = new WebSocket(`${proto}${location.host}/bili-live-music/ws?token=${encodeURIComponent(TOKEN)}`);
+    ws = new WebSocket(`${proto}${location.host}__BASE_PATH__/ws?token=${encodeURIComponent(TOKEN)}`);
     ws.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);

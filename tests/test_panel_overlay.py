@@ -222,6 +222,7 @@ async def test_overlay_server():
         async with session.get(f"{base}/bili-live-music/?token=tok123") as resp:
             page = await resp.text()
         check("面板页可访问", resp.status == 200 and "B站直播点歌台" in page)
+        check("面板页注入了路由前缀", "bili-live-music/api/action" in page and "__BASE_PATH__" not in page)
 
         async with session.get(f"{base}/bili-live-music/api/state?token=tok123") as resp:
             state = await resp.json()
@@ -255,6 +256,19 @@ async def test_overlay_server():
 
     await server.stop()
     check("服务停止后端口释放", True)
+
+    # 自定义路由前缀
+    hub2 = OverlayHub()
+    server2 = OverlayServer(hub2, OverlaySettings(host="127.0.0.1", port=0, public_host="127.0.0.1",
+                                                  token="tok2", base_path="/music"),
+                            DummyPanel(), page_dir=ROOT / "pages")
+    port2 = await server2.start()
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"http://127.0.0.1:{port2}/music/?token=tok2") as resp:
+            page2 = await resp.text()
+        check("自定义前缀: 面板可访问", resp.status == 200)
+        check("自定义前缀: 面板里路径也跟着换", "/music/api/state" in page2 and "__BASE_PATH__" not in page2)
+    await server2.stop()
 
 
 async def main():

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B站直播点歌台 · 控制面板</title>
+<style>
+  :root { color-scheme: dark; --bg: #0f1115; --card: #171a21; --line: #262b35; --txt: #e5e9f0; --dim: #8b97a8; --acc: #38bdf8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--txt); font: 14px/1.5 "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 18px; display: grid; gap: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  h2 { font-size: 13px; color: var(--dim); margin: 0 0 8px; font-weight: 600; letter-spacing: .04em; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1 1 auto; min-width: 0; }
+  .now { display: flex; gap: 14px; }
+  .cover { width: 110px; height: 110px; border-radius: 8px; object-fit: cover; background: #262b35; }
+  .title { font-size: 17px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sub { color: var(--dim); font-size: 12px; }
+  .bar { height: 6px; border-radius: 999px; background: #232833; overflow: hidden; margin: 8px 0 4px; }
+  .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--acc), #818cf8); }
+  button { background: #1f2530; color: var(--txt); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; font-size: 13px; }
+  button:hover { border-color: #3b4557; background: #242b38; }
+  button.primary { background: #0e7490; border-color: #0891b2; }
+  button.danger { background: #7f1d1d; border-color: #991b1b; }
+  input[type="text"], input[type="number"] { background: #12151b; border: 1px solid var(--line); color: var(--txt); border-radius: 8px; padding: 7px 10px; font-size: 13px; }
+  input[type="range"] { width: 160px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 7px 6px; border-bottom: 1px solid var(--line); }
+  th { color: var(--dim); font-weight: 600; font-size: 12px; }
+  td.actions { white-space: nowrap; }
+  td.actions button { padding: 3px 8px; font-size: 12px; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; font-size: 11px; background: #1f2633; color: var(--dim); }
+  .tag.ok { background: #064e3b; color: #6ee7b7; }
+  .tag.warn { background: #422006; color: #fbbf24; }
+  .tag.err { background: #450a0a; color: #fca5a5; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .muted { color: var(--dim); }
+  code { background: #12151b; padding: 1px 6px; border-radius: 6px; font-size: 12px; word-break: break-all; }
+  .result-item { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .result-item:last-child { border-bottom: 0; }
+  @media (max-width: 820px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="row">
+      <div class="grow">
+        <h1>🎵 B站直播点歌台</h1>
+        <div class="sub">OBS 页面与这里共用同一个队列；播放状态每 2 秒同步一次。</div>
+      </div>
+      <div class="row">
+        <span class="tag" id="danmuTag">弹幕: -</span>
+        <span class="tag" id="musicTag">音源: -</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>正在播放</h2>
+    <div class="now">
+      <img class="cover" id="cover" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
+      <div class="grow">
+        <div class="title" id="nowTitle">空闲</div>
+        <div class="sub" id="nowArtist">等待点歌…</div>
+        <div class="sub" id="nowRequester"></div>
+        <div class="bar"><div class="fill" id="fill"></div></div>
+        <div class="sub" id="nowTime">00:00 / 00:00</div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button onclick="act('pause')">⏸ 暂停</button>
+      <button onclick="act('resume')">▶ 继续</button>
+      <button onclick="act('next')">⏭ 下一首</button>
+      <button class="danger" onclick="act('stop')">⏹ 停止</button>
+      <span class="muted">音量</span>
+      <input type="range" id="volume" min="0" max="100" value="100" onchange="act('volume', {value: Number(this.value)})">
+      <span id="volumeText" class="muted">100</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <h2 class="grow" style="margin:0">等待队列 <span class="muted" id="queueCount"></span></h2>
+      <button class="danger" onclick="act('clear')">清空队列</button>
+    </div>
+    <table>
+      <thead><tr><th style="width:40px">#</th><th>歌曲</th><th style="width:120px">点歌人</th><th style="width:150px">操作</th></tr></thead>
+      <tbody id="queueBody"><tr><td colspan="4" class="muted">队列为空</td></tr></tbody>
+    </table>
+  </div>
+
+  <div class="grid2">
+    <div class="card">
+      <h2>搜索并手动点歌（绕过冷却与单人上限）</h2>
+      <div class="row">
+        <input type="text" id="kw" class="grow" placeholder="歌名 / 歌手，回车搜索" onkeydown="if(event.key==='Enter')doSearch()">
+        <button class="primary" onclick="doSearch()">搜索</button>
+      </div>
+      <div id="results" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card">
+      <h2>OBS 播放页</h2>
+      <div class="row" style="margin-bottom:8px">
+        <button onclick="act('danmaku_restart')">重连弹幕</button>
+        <button onclick="act('refresh')">刷新状态</button>
+      </div>
+      <div class="sub">播放器（放音频）</div>
+      <code id="urlPlayer">-</code>
+      <div class="row" style="margin-top:6px"><button onclick="copyUrl('urlPlayer')">复制</button></div>
+      <div class="sub" style="margin-top:10px">纯展示（静音，可放第二个场景）</div>
+      <code id="urlDisplay">-</code>
+      <div class="row" style="margin-top:6px"><button onclick="copyUrl('urlDisplay')">复制</button></div>
+      <div class="sub" style="margin-top:10px">布局：<span id="urlMini"></span></div>
+      <div class="muted" style="margin-top:10px;font-size:12px">提示：把上面地址填进 OBS 的「浏览器」源，宽高建议 standard 640×240 / mini 520×104 / sidebar 300×667。</div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  const TOKEN = new URLSearchParams(location.search).get("token") || "";
+  const API = (name) => `/bili-live-music/api/action/${name}?token=${encodeURIComponent(TOKEN)}`;
+  const STATE_URL = `/bili-live-music/api/state?token=${encodeURIComponent(TOKEN)}`;
+  let state = null;
+
+  const $ = (id) => document.getElementById(id);
+  const fmt = (s) => {
+    s = Math.max(0, Math.floor(Number(s) || 0));
+    return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+  };
+  const esc = (t) => String(t == null ? "" : t).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  async function act(name, payload) {
+    try {
+      const resp = await fetch(API(name), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload || {}),
+      });
+      const data = await resp.json();
+      if (!data.ok) alert("操作失败: " + (data.error || "未知错误"));
+      await refresh();
+    } catch (e) {
+      alert("请求失败: " + e);
+    }
+  }
+
+  async function refresh() {
+    try {
+      const resp = await fetch(STATE_URL);
+      state = await resp.json();
+      render();
+    } catch (e) {
+      $("danmuTag").textContent = "弹幕: 无法连接服务";
+    }
+  }
+
+  function render() {
+    if (!state) return;
+    const st = state.player || state.state || {};
+    const cur = st.current;
+    const song = cur && cur.song ? cur.song : null;
+    $("nowTitle").textContent = song ? song.title : "空闲";
+    $("nowArtist").textContent = song ? song.artist : "等待点歌…";
+    $("nowRequester").textContent = cur ? `点歌：${cur.requester || "匿名"} · 状态：${st.status || "-"}` : "";
+    if (song && song.cover) $("cover").src = song.cover;
+    const duration = Number(st.duration || 0);
+    const pos = Number(st.position || 0);
+    $("fill").style.width = (duration > 0 ? Math.min(100, (pos / duration) * 100) : 0) + "%";
+    $("nowTime").textContent = `${fmt(pos)} / ${fmt(duration)}`;
+    $("volume").value = Number(st.volume ?? 100);
+    $("volumeText").textContent = st.volume ?? 100;
+
+    const queue = Array.isArray(st.queue) ? st.queue : [];
+    const total = st.queue_total ?? queue.length;
+    $("queueCount").textContent = `（${total} 首）`;
+    const body = $("queueBody");
+    body.innerHTML = "";
+    if (!total) {
+      body.innerHTML = '<tr><td colspan="4" class="muted">队列为空</td></tr>';
+    } else {
+      queue.forEach((item, index) => {
+        const s = item.song || {};
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${index + 1}</td><td>${esc(s.title)} <span class="muted">· ${esc(s.artist)}</span></td>
+          <td>${esc(item.requester)}</td>
+          <td class="actions">
+            <button onclick="act('up', {index:${index}})">↑</button>
+            <button onclick="act('down', {index:${index}})">↓</button>
+            <button onclick="act('remove', {index:${index}})">删除</button>
+          </td>`;
+        body.appendChild(tr);
+      });
+    }
+
+    const dm = state.danmaku || {};
+    const dmLevel = dm.state === "connected" ? "ok" : (dm.state === "waiting" || dm.state === "reconnecting" ? "warn" : "err");
+    $("danmuTag").className = "tag " + dmLevel;
+    $("danmuTag").textContent = `弹幕: ${dm.state || "-"}`;
+    $("musicTag").textContent = `音源: ${(state.music && state.music.backend) || "-"}`;
+
+    const urls = state.urls || {};
+    if (urls.player) $("urlPlayer").textContent = urls.player;
+    if (urls.display) $("urlDisplay").textContent = urls.display;
+    if (urls.mini) $("urlMini").textContent = urls.mini;
+  }
+
+  function copyUrl(id) {
+    const text = $(id).textContent || "";
+    navigator.clipboard && navigator.clipboard.writeText(text).then(() => alert("已复制"), () => alert(text));
+  }
+
+  async function doSearch() {
+    const keyword = $("kw").value.trim();
+    if (!keyword) return;
+    $("results").innerHTML = '<div class="muted">搜索中…</div>';
+    try {
+      const resp = await fetch(API("search"), {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyword }),
+      });
+      const data = await resp.json();
+      const items = (data.result && data.result.items) || [];
+      if (!data.ok) { $("results").innerHTML = `<div class="muted">搜索失败：${esc(data.error)}</div>`; return; }
+      if (!items.length) { $("results").innerHTML = '<div class="muted">没有结果</div>'; return; }
+      $("results").innerHTML = "";
+      items.forEach((song, index) => {
+        const div = document.createElement("div");
+        div.className = "result-item";
+        div.innerHTML = `<div class="grow">${esc(song.title)} <span class="muted">· ${esc(song.artist)} · ${fmt((song.duration_ms || 0) / 1000)}</span></div>
+          <button class="primary" onclick="addSong(${index})">加入队列</button>`;
+        div.dataset.song = JSON.stringify(song);
+        $("results").appendChild(div);
+      });
+      window.__results = items;
+    } catch (e) {
+      $("results").innerHTML = `<div class="muted">搜索失败：${esc(e)}</div>`;
+    }
+  }
+
+  async function addSong(index) {
+    const song = (window.__results || [])[index];
+    if (!song) return;
+    await act("add", { song });
+  }
+
+  // 面板也走 WS 收状态, 秒级刷新; 断线自动回退到轮询
+  let ws = null;
+  function connectWs() {
+    const proto = location.protocol === "https:" ? "wss://" : "ws://";
+    ws = new WebSocket(`${proto}${location.host}/bili-live-music/ws?token=${encodeURIComponent(TOKEN)}`);
+    ws.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        if (data.type === "state" && data.state) {
+          state = Object.assign({}, state, { player: data.state });
+          render();
+        }
+      } catch (e) { /* ignore */ }
+    };
+    ws.onclose = () => setTimeout(connectWs, 5000);
+  }
+
+  window.act = act; window.doSearch = doSearch; window.addSong = addSong; window.copyUrl = copyUrl;
+  refresh();
+  connectWs();
+  setInterval(refresh, 8000);
+})();
+</script>
+</body>
+</html>

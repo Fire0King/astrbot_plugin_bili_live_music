@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>B站直播点歌台</title>
+<style>
+  @font-face {
+    font-family: "BiliLiveMusicFont";
+    src: url("__FONT_URL__") format("truetype");
+    font-display: swap;
+  }
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+  body {
+    font-family: "BiliLiveMusicFont", "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
+    display: grid; place-items: center; color: #f8fafc;
+  }
+  .shell {
+    position: relative; display: flex; gap: 14px; padding: 10px;
+    background: rgba(22, 24, 29, .92);
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .30);
+    overflow: hidden;
+    transition: opacity .3s ease;
+  }
+  .shell.dim { opacity: .55; }
+  .cover-wrap {
+    position: relative; flex: 0 0 auto; border-radius: 8px; overflow: hidden;
+    background: #30343b; display: grid; place-items: center;
+  }
+  .cover { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .cover-fallback { font-size: 26px; opacity: .35; }
+  .meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .title {
+    font-size: 20px; font-weight: 700; line-height: 1.25;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .artist { font-size: 13px; color: #b6c2d1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .requester { font-size: 12px; color: #7dd3fc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .progress-row { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+  .bar { flex: 1 1 auto; height: 5px; border-radius: 999px; background: rgba(255, 255, 255, .16); overflow: hidden; }
+  .bar-fill { height: 100%; width: 0; background: linear-gradient(90deg, #38bdf8, #818cf8); border-radius: 999px; transition: width .25s linear; }
+  .time { font-size: 11px; color: #94a3b8; font-variant-numeric: tabular-nums; min-width: 74px; text-align: right; }
+  .queue { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .queue li { font-size: 12px; color: #a9b6c6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .queue li b { color: #e2e8f0; font-weight: 600; }
+  .badge { font-size: 11px; color: #cbd5e1; opacity: .9; }
+  .state-row { display: flex; align-items: center; gap: 6px; margin-top: auto; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: #64748b; }
+  .dot.ok { background: #34d399; }
+  .dot.warn { background: #fbbf24; }
+  .dot.err { background: #f87171; }
+  /* ---- 三种布局 ---- */
+  body[data-layout="mini"] .shell { width: 520px; height: 104px; align-items: center; }
+  body[data-layout="mini"] .cover-wrap { width: 84px; height: 84px; }
+  body[data-layout="mini"] .title { font-size: 15px; }
+  body[data-layout="mini"] .artist { font-size: 11px; }
+  body[data-layout="mini"] .queue, body[data-layout="mini"] .state-row { display: none; }
+  body[data-layout="standard"] .shell { width: 640px; min-height: 220px; }
+  body[data-layout="standard"] .cover-wrap { width: 190px; height: 190px; }
+  body[data-layout="standard"] .queue li:nth-child(n+3) { display: none; }
+  body[data-layout="sidebar"] .shell {
+    width: 300px; height: 660px; flex-direction: column; gap: 8px; padding: 12px;
+  }
+  body[data-layout="sidebar"] .cover-wrap { width: 100%; height: 260px; }
+  body[data-layout="sidebar"] .title { font-size: 16px; }
+  body[data-layout="sidebar"] .queue { gap: 4px; }
+  body[data-layout="sidebar"] .queue li { font-size: 13px; }
+</style>
+</head>
+<body data-layout="__LAYOUT__" data-mode="__MODE__">
+<div class="shell" id="shell">
+  <div class="cover-wrap" id="coverWrap">
+    <img class="cover" id="cover" alt="" style="display:none">
+    <div class="cover-fallback" id="coverFallback">♪</div>
+  </div>
+  <div class="meta">
+    <div class="title" id="title">直播点歌台</div>
+    <div class="artist" id="artist">等待点歌…</div>
+    <div class="requester" id="requester"></div>
+    <div class="progress-row">
+      <div class="bar"><div class="bar-fill" id="barFill"></div></div>
+      <div class="time" id="time">00:00 / 00:00</div>
+    </div>
+    <ul class="queue" id="queue"></ul>
+    <div class="state-row">
+      <span class="dot" id="dot"></span>
+      <span class="badge" id="statusText">连接中…</span>
+    </div>
+  </div>
+</div>
+<audio id="audio" preload="auto" style="display:none"></audio>
+<script>
+(() => {
+  const MODE = "__MODE__";
+  const LAYOUT = "__LAYOUT__";
+  const TOKEN = __TOKEN__;
+  const WS_PATH = "__WS_PATH__";
+  const IS_PLAYER = MODE === "player";
+
+  const el = (id) => document.getElementById(id);
+  const audio = el("audio");
+  let ws = null;
+  let retry = 0;
+  let state = null;
+  let lastProgressSent = 0;
+  let currentItemId = "";
+
+  const fmt = (secs) => {
+    secs = Math.max(0, Math.floor(secs || 0));
+    const m = String(Math.floor(secs / 60)).padStart(2, "0");
+    const s = String(secs % 60).padStart(2, "0");
+    return `${m}:${s}`;
+  };
+
+  function setStatus(text, level) {
+    el("statusText").textContent = text;
+    el("dot").className = "dot" + (level ? " " + level : "");
+  }
+
+  function render(now) {
+    if (!state) return;
+    const cur = state.current;
+    const song = cur && cur.song ? cur.song : null;
+    document.title = song ? `${song.title} - ${song.artist}` : "直播点歌台";
+    el("title").textContent = song ? song.title : "直播点歌台";
+    el("artist").textContent = song ? song.artist : "等待点歌…";
+    el("requester").textContent = cur ? `点歌：${cur.requester || "匿名"}` : "";
+    const cover = (song && song.cover) || "";
+    const img = el("cover");
+    if (cover) {
+      img.src = cover;
+      img.style.display = "block";
+      el("coverFallback").style.display = "none";
+      img.onerror = () => { img.style.display = "none"; el("coverFallback").style.display = "grid"; };
+    } else {
+      img.style.display = "none";
+      el("coverFallback").style.display = "grid";
+    }
+
+    const duration = Number(state.duration || 0) || 0;
+    let position = Number(state.position || 0) || 0;
+    if (IS_PLAYER && audio && !audio.paused && audio.currentTime) position = audio.currentTime;
+    const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
+    el("barFill").style.width = pct + "%";
+    el("time").textContent = `${fmt(position)} / ${fmt(duration)}`;
+
+    const queue = Array.isArray(state.queue) ? state.queue : [];
+    const ul = el("queue");
+    ul.innerHTML = "";
+    queue.slice(0, LAYOUT === "sidebar" ? 5 : 2).forEach((item, index) => {
+      const li = document.createElement("li");
+      const s = item.song || {};
+      li.innerHTML = `<b>${index + 1}. ${escapeHtml(s.title || "")}</b> · ${escapeHtml(s.artist || "")} <span style="opacity:.7">(${escapeHtml(item.requester || "匿名")})</span>`;
+      ul.appendChild(li);
+    });
+
+    const map = { idle: ["空闲", ""], waiting_client: ["等待播放器页", "warn"], loading: ["加载中…", "warn"],
+                  playing: ["播放中", "ok"], paused: ["已暂停", "warn"], error: ["播放异常", "err"] };
+    if (state.status) setStatus((map[state.status] || [state.status, ""])[0], (map[state.status] || ["", ""])[1]);
+    el("shell").classList.toggle("dim", state.status === "paused");
+  }
+
+  function escapeHtml(text) {
+    return String(text == null ? "" : text).replace(/[&<>"']/g, (ch) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[ch]));
+  }
+
+  function send(message) {
+    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+  }
+
+  function connect() {
+    const proto = location.protocol === "https:" ? "wss://" : "ws://";
+    const url = `${proto}${location.host}${WS_PATH}?token=${encodeURIComponent(TOKEN)}`;
+    ws = new WebSocket(url);
+    ws.onopen = () => {
+      retry = 0;
+      setStatus("已连接", "ok");
+      if (IS_PLAYER) send({ type: "claim" });
+      send({ type: "ready" });
+    };
+    ws.onmessage = (event) => {
+      let data;
+      try { data = JSON.parse(event.data); } catch (e) { return; }
+      handle(data);
+    };
+    ws.onclose = () => {
+      setStatus("连接断开，重连中…", "err");
+      const delay = Math.min(30000, 1000 * Math.pow(2, retry++));
+      setTimeout(connect, delay);
+    };
+    ws.onerror = () => { setStatus("连接失败", "err"); };
+  }
+
+  function handle(data) {
+    switch (data.type) {
+      case "state":
+        state = data.state || null;
+        render();
+        break;
+      case "volume":
+        if (IS_PLAYER) audio.volume = Math.max(0, Math.min(1, Number(data.volume || 0) / 100));
+        break;
+      case "play":
+        if (!data.item) break;
+        playItem(data.item);
+        break;
+      case "pause":
+        if (IS_PLAYER) audio.pause();
+        break;
+      case "resume":
+        if (IS_PLAYER && audio.src) audio.play().catch(() => {});
+        break;
+      case "stop":
+        if (IS_PLAYER) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
+        break;
+      default:
+        break;
+    }
+  }
+
+  function playItem(item) {
+    currentItemId = item.item_id || "";
+    if (!IS_PLAYER) { render(); return; }
+    const song = item.song || {};
+    if (!song.url) {
+      send({ type: "error", itemId: currentItemId, message: "no_url" });
+      return;
+    }
+    send({ type: "loading", itemId: currentItemId });
+    audio.pause();
+    audio.src = song.url;
+    audio.load();
+    audio.play().catch((err) => {
+      send({ type: "error", itemId: currentItemId, message: String(err && err.message || err) });
+    });
+  }
+
+  if (IS_PLAYER) {
+    audio.addEventListener("loadedmetadata", () => send({ type: "playing", itemId: currentItemId }));
+    audio.addEventListener("playing", () => send({ type: "playing", itemId: currentItemId }));
+    audio.addEventListener("ended", () => send({ type: "ended", itemId: currentItemId }));
+    audio.addEventListener("error", () => send({ type: "error", itemId: currentItemId, message: "audio_error" }));
+    audio.addEventListener("timeupdate", () => {
+      const now = Date.now();
+      if (now - lastProgressSent < 1000) return;
+      lastProgressSent = now;
+      send({ type: "progress", itemId: currentItemId, position: audio.currentTime || 0 });
+    });
+  }
+
+  setInterval(() => render(), 1000);
+  connect();
+})();
+</script>
+</body>
+</html>

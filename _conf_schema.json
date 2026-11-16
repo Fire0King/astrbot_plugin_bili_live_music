@@ -1,0 +1,199 @@
+{
+    "room_id": {
+        "description": "B 站直播间号（直播间链接末尾的数字，如 1854258163）",
+        "type": "int",
+        "default": 0,
+        "minimum": 0
+    },
+    "enable_danmaku": {
+        "description": "是否启动弹幕监听（关闭后只能用面板/QQ 点歌）",
+        "type": "bool",
+        "default": true
+    },
+    "command_prefix": {
+        "description": "弹幕点歌前缀（观众发「前缀 歌名」）",
+        "type": "string",
+        "default": "点歌"
+    },
+    "bilibili_cookie": {
+        "description": "B 站 Cookie（可选；公开直播间可留空匿名监听，受限直播间建议填 SESSDATA=...; bili_jct=...）",
+        "type": "string",
+        "default": ""
+    },
+    "danmaku_connect_timeout": {
+        "description": "弹幕连接超时（秒），超时后按 1/2/4/8/16/32 秒退避重试",
+        "type": "int",
+        "default": 10,
+        "minimum": 3,
+        "maximum": 60
+    },
+    "enable_danmaku_request": {
+        "description": "是否允许观众通过弹幕点歌（关闭后只接受面板/管理员点歌）",
+        "type": "bool",
+        "default": true
+    },
+    "bot_request_enabled": {
+        "description": "是否允许非管理员在 QQ 群/私聊点歌（默认关闭，避免被刷）",
+        "type": "bool",
+        "default": false
+    },
+    "bot_request_whitelist": {
+        "description": "允许 QQ 点歌的用户 ID 白名单（逗号分隔，留空=所有人可用）",
+        "type": "string",
+        "default": ""
+    },
+    "music_backend": {
+        "description": "音乐后端：netease=网易云直链（轻量）；luoyue=落月 API（支持网易云/QQ/酷狗多源）",
+        "type": "string",
+        "options": [
+            "netease",
+            "luoyue"
+        ],
+        "default": "netease"
+    },
+    "search_limit": {
+        "description": "弹幕/QQ 点歌时每源最多取几个候选（会在多个候选里挑第一个能拿到直链的）",
+        "type": "int",
+        "default": 3,
+        "minimum": 1,
+        "maximum": 20
+    },
+    "panel_search_limit": {
+        "description": "控制面板搜索返回的最大结果数",
+        "type": "int",
+        "default": 20,
+        "minimum": 1,
+        "maximum": 50
+    },
+    "netease_direct_api": {
+        "description": "网易云直链节点（逗号分隔，按顺序回退）",
+        "type": "string",
+        "default": "api.qijieya.cn,api.injahow.cn,meting.jmstrand.cn,metingapi.nanorocky.top"
+    },
+    "luoyue_api_base": {
+        "description": "落月 API 地址（music_backend=luoyue 时生效）",
+        "type": "string",
+        "default": "https://api.vkeys.cn"
+    },
+    "luoyue_sources": {
+        "description": "落月 API 启用哪些音源（逗号分隔：netease,tencent,kugou）",
+        "type": "string",
+        "default": "netease,tencent"
+    },
+    "netease_quality": {
+        "description": "网易云音质参数（落月 API 使用）",
+        "type": "int",
+        "default": 1
+    },
+    "tencent_quality": {
+        "description": "QQ 音乐音质参数（落月 API 使用）",
+        "type": "int",
+        "default": 10
+    },
+    "kugou_quality": {
+        "description": "酷狗音质参数：320 / flac（落月 API 使用）",
+        "type": "string",
+        "default": "320"
+    },
+    "verify_music_url": {
+        "description": "取直链后先验证真的能下载（推荐开启；直链节点很爱挂）",
+        "type": "bool",
+        "default": true
+    },
+    "music_timeout": {
+        "description": "音乐接口超时（秒）",
+        "type": "int",
+        "default": 10,
+        "minimum": 3,
+        "maximum": 60
+    },
+    "max_queue_size": {
+        "description": "队列最大长度",
+        "type": "int",
+        "default": 30,
+        "minimum": 1,
+        "maximum": 200
+    },
+    "per_user_limit": {
+        "description": "单个观众同时最多排几首",
+        "type": "int",
+        "default": 3,
+        "minimum": 1,
+        "maximum": 50
+    },
+    "cooldown": {
+        "description": "单个观众点歌冷却（秒，0=关闭）",
+        "type": "int",
+        "default": 25,
+        "minimum": 0,
+        "maximum": 3600
+    },
+    "max_duration": {
+        "description": "允许点歌的单曲最大时长（毫秒，默认 10 分钟）",
+        "type": "int",
+        "default": 600000,
+        "minimum": 10000,
+        "maximum": 14400000
+    },
+    "history_limit": {
+        "description": "播放历史保留条数",
+        "type": "int",
+        "default": 25,
+        "minimum": 1,
+        "maximum": 200
+    },
+    "dedupe": {
+        "description": "队列/当前播放中已有同一首歌时拒绝重复点歌",
+        "type": "bool",
+        "default": true
+    },
+    "playback_load_timeout": {
+        "description": "单曲加载超时（秒），超时自动跳过，避免一首坏歌卡住队列",
+        "type": "int",
+        "default": 25,
+        "minimum": 5,
+        "maximum": 120
+    },
+    "obs_server_host": {
+        "description": "Overlay 服务监听地址（0.0.0.0 表示所有网卡）",
+        "type": "string",
+        "default": "0.0.0.0"
+    },
+    "obs_server_port": {
+        "description": "Overlay 服务端口（OBS 浏览器源与面板共用）",
+        "type": "int",
+        "default": 60716,
+        "minimum": 1024,
+        "maximum": 65535
+    },
+    "obs_public_host": {
+        "description": "生成 Overlay 地址时使用的域名/IP（OBS 在你本机的话填 127.0.0.1，AstrBot 在服务器上则填服务器 IP）",
+        "type": "string",
+        "default": "127.0.0.1"
+    },
+    "obs_access_token": {
+        "description": "Overlay/面板访问令牌（务必改掉默认值）",
+        "type": "string",
+        "default": "test12345"
+    },
+    "overlay_base_path": {
+        "description": "Overlay 路由前缀",
+        "type": "string",
+        "default": "/bili-live-music"
+    },
+    "overlay_layout": {
+        "description": "默认布局：mini(520×104) / standard(640×240) / sidebar(300×667)",
+        "type": "string",
+        "options": [
+            "mini",
+            "standard",
+            "sidebar"
+        ],
+        "default": "standard"
+    },
+    "overlay_font_path": {
+        "description": "Overlay 字体文件路径（留空则用系统字体，404 时页面自动回退）",
+        "type": "string",
+        "default": ""
+    }
+}

@@ -237,7 +237,10 @@ class OverlayServer:
         if not self._authorized(request):
             return web.Response(status=401, text="Unauthorized: invalid token")
         html = self._read_page("panel.html").replace("__BASE_PATH__", self.settings.base_path)
-        return web.Response(text=html, content_type="text/html", charset="utf-8")
+        return web.Response(
+            text=html, content_type="text/html", charset="utf-8",
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
 
     async def _handle_panel(self, request: Any):
         return await self._handle_index(request)
@@ -258,7 +261,10 @@ class OverlayServer:
         html = html.replace("__MODE__", mode).replace("__LAYOUT__", layout)
         html = html.replace("__TOKEN__", json.dumps(self.settings.token))
         html = html.replace("__WS_PATH__", f"{self.settings.base_path}/ws")
-        return web.Response(text=html, content_type="text/html", charset="utf-8")
+        return web.Response(
+            text=html, content_type="text/html", charset="utf-8",
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
 
     async def _handle_font(self, request: Any):
         from aiohttp import web
@@ -319,9 +325,14 @@ class OverlayServer:
                     continue
                 kind = str(data.get("type") or "")
                 if kind == "claim":
-                    client.role = ROLE_PLAYER
-                    logger.info("Overlay 页面声明为播放器(player)")
-                    await self._notify_role()
+                    if client.role != ROLE_PLAYER and self.hub.has_player:
+                        # 已经有播放器页在放音频: 后来者降级为展示页, 避免两路声音叠加
+                        logger.warning("已有播放器页在播放, 新页面自动降级为展示(display)")
+                        await client.send({"type": "role", "role": ROLE_DISPLAY, "backend": "browser"})
+                    else:
+                        client.role = ROLE_PLAYER
+                        logger.info("Overlay 页面声明为播放器(player)")
+                        await self._notify_role()
                 elif kind == "ready":
                     if client.role == ROLE_UNKNOWN:
                         client.role = ROLE_DISPLAY

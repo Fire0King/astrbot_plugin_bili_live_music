@@ -288,6 +288,50 @@ async def main():
     await inst._on_danmaku(Msg())          # 3 秒内重复应被忽略
     check("弹幕 3 秒内不重复处理", len(inst._danmaku_last) == 1)
 
+    # ---- 限流表定期清理(避免直播久了无限增长) ----
+    inst4 = make_plugin()
+    import time as _time
+    old = _time.time() - 600
+    inst4._danmaku_last = {f"uid:{i}": old for i in range(600)}
+    await inst4._on_danmaku(Msg())
+    check("限流记录会定期清理", len(inst4._danmaku_last) < 600)
+
+    # ---- 播放器角色降级: 第二个 claim 的页面应静音 ----
+    import aiohttp as _aiohttp
+    from blm.core.overlay import OverlayHub, OverlayServer, OverlaySettings
+
+    class _P:
+        def snapshot(self):
+            return {}
+
+        async def action(self, name, payload):
+            return {}
+
+        def on_client_message(self, role, message):
+            pass
+
+        def on_client_connected(self, role):
+            pass
+
+    hub3 = OverlayHub()
+    server3 = OverlayServer(hub3, OverlaySettings(host="127.0.0.1", port=0, token="t3"),
+                            _P(), page_dir=ROOT / "pages")
+    port3 = await server3.start()
+    async with _aiohttp.ClientSession() as session:
+        ws1 = await session.ws_connect(f"http://127.0.0.1:{port3}/bili-live-music/ws?token=t3")
+        await ws1.send_str('{"type":"claim"}')
+        await asyncio.sleep(0.15)
+        ws2 = await session.ws_connect(f"http://127.0.0.1:{port3}/bili-live-music/ws?token=t3")
+        await ws2.send_str('{"type":"claim"}')
+        await asyncio.sleep(0.25)
+        check("只允许一个播放器页", hub3.player_count() == 1)
+        msg = await ws2.receive(timeout=2)
+        payload = __import__("json").loads(msg.data)
+        check("第二个播放页被降级为展示", payload.get("type") == "role" and payload.get("role") == "display")
+        await ws1.close()
+        await ws2.close()
+    await server3.stop()
+
     print()
     print("RESULT:", "ALL PASSED" if all(results) else f"SOME FAILED ({results.count(False)})")
     return 0 if all(results) else 1

@@ -225,6 +225,10 @@ class Main(Star):
         # 同一观众 3 秒内只处理一次, 防止刷屏
         key = f"uid:{message.uid}" if getattr(message, "uid", 0) else f"name:{message.username}"
         now = time.time()
+        if len(self._danmaku_last) > 500:
+            # 直播久了观众很多, 定期清掉过期的限流记录, 避免字典无限增长
+            cutoff = now - 300
+            self._danmaku_last = {k: v for k, v in self._danmaku_last.items() if v >= cutoff}
         if now - self._danmaku_last.get(key, 0) < 3:
             return
         self._danmaku_last[key] = now

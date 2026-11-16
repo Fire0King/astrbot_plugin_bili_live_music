@@ -99,7 +99,7 @@
   const LAYOUT = "__LAYOUT__";
   const TOKEN = __TOKEN__;
   const WS_PATH = "__WS_PATH__";
-  const IS_PLAYER = MODE === "player";
+  let isPlayer = MODE === "player";
 
   const el = (id) => document.getElementById(id);
   const audio = el("audio");
@@ -143,7 +143,7 @@
 
     const duration = Number(state.duration || 0) || 0;
     let position = Number(state.position || 0) || 0;
-    if (IS_PLAYER && audio && !audio.paused && audio.currentTime) position = audio.currentTime;
+    if (isPlayer && audio && !audio.paused && audio.currentTime) position = audio.currentTime;
     const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
     el("barFill").style.width = pct + "%";
     el("time").textContent = `${fmt(position)} / ${fmt(duration)}`;
@@ -181,7 +181,7 @@
     ws.onopen = () => {
       retry = 0;
       setStatus("已连接", "ok");
-      if (IS_PLAYER) send({ type: "claim" });
+      if (isPlayer) send({ type: "claim" });
       send({ type: "ready" });
     };
     ws.onmessage = (event) => {
@@ -204,20 +204,30 @@
         render();
         break;
       case "volume":
-        if (IS_PLAYER) audio.volume = Math.max(0, Math.min(1, Number(data.volume || 0) / 100));
+        if (isPlayer) audio.volume = Math.max(0, Math.min(1, Number(data.volume || 0) / 100));
         break;
       case "play":
         if (!data.item) break;
         playItem(data.item);
         break;
       case "pause":
-        if (IS_PLAYER) audio.pause();
+        if (isPlayer) audio.pause();
         break;
       case "resume":
-        if (IS_PLAYER && audio.src) audio.play().catch(() => {});
+        if (isPlayer && audio.src) audio.play().catch(() => {});
         break;
       case "stop":
-        if (IS_PLAYER) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
+        if (isPlayer) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
+        break;
+      case "role":
+        // 服务器说"你不是播放器"(已有别的播放页在放音频)时, 立刻静音, 避免双重声音
+        if (data.role !== "player" && isPlayer) {
+          isPlayer = false;
+          audio.pause();
+          audio.removeAttribute("src");
+          audio.load();
+          setStatus("展示模式（静音）", "");
+        }
         break;
       default:
         break;
@@ -226,7 +236,7 @@
 
   function playItem(item) {
     currentItemId = item.item_id || "";
-    if (!IS_PLAYER) { render(); return; }
+    if (!isPlayer) { render(); return; }
     const song = item.song || {};
     if (!song.url) {
       send({ type: "error", itemId: currentItemId, message: "no_url" });
@@ -241,7 +251,7 @@
     });
   }
 
-  if (IS_PLAYER) {
+  if (isPlayer) {
     audio.addEventListener("loadedmetadata", () => send({ type: "playing", itemId: currentItemId }));
     audio.addEventListener("playing", () => send({ type: "playing", itemId: currentItemId }));
     audio.addEventListener("ended", () => send({ type: "ended", itemId: currentItemId }));

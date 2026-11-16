@@ -163,6 +163,23 @@ async def test_panel():
     player.on_client_message("player", {"type": "ended"})
     check("ended 透传到播放器", queue.history and queue.history[-1].result == "done")
 
+    # 模拟弹幕
+    simulated = []
+
+    async def fake_sim(text, username):
+        simulated.append((text, username))
+        return {"ok": True, "detail": "已加入", "queued": 1, "current": "晴天"}
+
+    _, _, _, panel5, _ = build()
+    panel5.simulate = fake_sim
+    r = await panel5.action("simulate_danmaku", {"text": "点歌 晴天"})
+    check("模拟弹幕调用回调", simulated == [("点歌 晴天", "测试观众")] and r.get("ok") is True)
+    r2 = await panel5.action("simulate_danmaku", {"text": "   "})
+    check("模拟弹幕空文本报错", r2.get("ok") is False)
+    panel5.simulate = None
+    r3 = await panel5.action("simulate_danmaku", {"text": "点歌 x"})
+    check("未提供模拟回调时报错", r3.get("ok") is False)
+
     # 没有播放器页时不自动开播
     queue2, hub2, player2, panel2, _ = build(has_player=False)
     await panel2.action("add", {"keyword": "等待"})

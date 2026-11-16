@@ -17,6 +17,8 @@
   OBS 浏览器源打开即播放音频，WebSocket 实时同步歌曲/进度/队列
 - 🎛️ **控制面板**：队列增删/排序、搜索点歌、暂停/下一首/音量、弹幕重连、一键复制 OBS 地址
 - 💬 **QQ 命令**：`/点歌 歌名`；管理员 `/点歌 状态|跳过|清空|暂停|继续|音量|面板|重连`
+- 🧪 **模拟弹幕**：面板里直接“发一条弹幕”走真实的解析→搜歌→入队→播放流程，**不开播、没有观众也能验收**
+- 🔑 **凭据可借用**：`bilibili_cookie` 留空时自动借用 `astrbot_plugin_bilibili` 已登录的凭据（公开直播间其实不需要）
 - 💾 **状态持久化**：等待队列/历史/音量落盘，重启后恢复；上次没播完的放回队首
 - 🛡️ **健壮性**：加载超时自动跳过坏歌、播放报错自动跳过、直链失效换候选、面板操作异常不影响播放
 
@@ -70,6 +72,7 @@ pip install bilibili-api-python aiohttp
 | `enable_danmaku` | true | 是否启动弹幕监听 |
 | `command_prefix` | 点歌 | 弹幕前缀 |
 | `bilibili_cookie` | 空 | 受限直播间才需要；公开直播间留空即可 |
+| `borrow_bilibili_cookie` | true | 留空时自动借用 bilibili 插件的登录凭据 |
 | `music_backend` | netease | `netease` 或 `luoyue` |
 | `netease_direct_api` | 4 个节点 | 网易云直链节点，按顺序回退 |
 | `luoyue_api_base` / `luoyue_sources` | vkeys / netease,tencent | 落月 API 地址与启用音源 |
@@ -123,6 +126,11 @@ python tests/test_panel_overlay.py
 
 **Q：服务器重启后队列还在吗？**
 等待队列、历史、音量会恢复；正在播的那首会放回队首重新播。
+
+**Q：还没开播 / 没有观众，怎么测试？**
+打开控制面板 → 「模拟弹幕（测试用）」→ 输入 `点歌 晴天` → 发一条。
+它会走真实的「前缀解析 → 搜歌 → 直链校验 → 入队 → 通知 OBS 播放」流程，
+OBS 页面开着就能直接看到歌开始放。
 
 ## 🙏 致谢
 

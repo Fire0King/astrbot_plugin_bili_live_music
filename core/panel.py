@@ -29,12 +29,14 @@ class PanelService:
         music: Any,
         danmaku: Any = None,
         urls_provider: Optional[Callable[[], Dict[str, str]]] = None,
+        simulate: Optional[Callable[[str, str], Any]] = None,
     ):
         self.queue = queue
         self.player = player
         self.music = music
         self.danmaku = danmaku
         self.urls_provider = urls_provider
+        self.simulate = simulate
 
     # ---------------- 快照 ----------------
 
@@ -122,6 +124,14 @@ class PanelService:
                 return self._err("弹幕监听未启用")
             ok = await self.danmaku.restart()
             return {"ok": ok, "danmaku": self.danmaku.snapshot()}
+        if name == "simulate_danmaku":
+            if self.simulate is None:
+                return self._err("当前不支持模拟弹幕")
+            text = str(payload.get("text") or "").strip()
+            if not text:
+                return self._err("请填写要模拟的弹幕内容，例如「点歌 晴天」")
+            result = await self.simulate(text, str(payload.get("username") or "测试观众"))
+            return result if isinstance(result, dict) else {"ok": False}
         return self._err(f"未知操作: {name}")
 
     async def _add(self, payload: Dict[str, Any]) -> Dict[str, Any]:

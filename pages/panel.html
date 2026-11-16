@@ -100,6 +100,13 @@
         <button class="primary" onclick="doSearch()">搜索</button>
       </div>
       <div id="results" style="margin-top:8px"></div>
+
+      <h2 style="margin-top:14px">模拟弹幕（测试用，走真实点歌流程）</h2>
+      <div class="row">
+        <input type="text" id="simText" class="grow" placeholder="点歌 晴天" onkeydown="if(event.key==='Enter')simulate()">
+        <button onclick="simulate()">发一条</button>
+      </div>
+      <div class="sub" id="simResult" style="margin-top:6px">不需要真的开播，就能验证「弹幕 → 队列 → 播放」整条链路。</div>
     </div>
 
     <div class="card">
@@ -143,9 +150,20 @@
       const data = await resp.json();
       if (!data.ok) alert("操作失败: " + (data.error || "未知错误"));
       await refresh();
+      return data;
     } catch (e) {
       alert("请求失败: " + e);
+      return { ok: false, error: String(e) };
     }
+  }
+
+  async function simulate() {
+    const text = ($("simText").value || "").trim() || "点歌 晴天";
+    const data = await act("simulate_danmaku", { text: text, username: "测试观众" });
+    const result = (data && data.result) || {};
+    $("simResult").textContent = result.ok
+      ? `✅ 已入队：${result.detail || ""}（队列 ${result.queued} 首，当前：${result.current || "空闲"}）`
+      : `❌ ${result.error || data.error || "模拟失败"}`;
   }
 
   async function refresh() {
@@ -264,7 +282,7 @@
     ws.onclose = () => setTimeout(connectWs, 5000);
   }
 
-  window.act = act; window.doSearch = doSearch; window.addSong = addSong; window.copyUrl = copyUrl;
+  window.act = act; window.doSearch = doSearch; window.addSong = addSong; window.copyUrl = copyUrl; window.simulate = simulate;
   refresh();
   connectWs();
   setInterval(refresh, 8000);

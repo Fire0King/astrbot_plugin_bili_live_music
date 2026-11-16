@@ -20,6 +20,11 @@
         "type": "string",
         "default": ""
     },
+    "borrow_bilibili_cookie": {
+        "description": "bilibili_cookie 留空时，自动借用 astrbot_plugin_bilibili 已登录的凭据",
+        "type": "bool",
+        "default": true
+    },
     "danmaku_connect_timeout": {
         "description": "弹幕连接超时（秒），超时后按 1/2/4/8/16/32 秒退避重试",
         "type": "int",

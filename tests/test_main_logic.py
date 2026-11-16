@@ -332,6 +332,13 @@ async def main():
         await ws2.close()
     await server3.stop()
 
+    # ---- 模拟弹幕(面板调试用) ----
+    inst5 = make_plugin()
+    res5 = await inst5._simulate_danmaku("点歌 发如雪")
+    check("模拟弹幕走通点歌", res5.get("ok") is True and res5.get("current") == "发如雪")
+    res6 = await inst5._simulate_danmaku("随便聊聊")
+    check("模拟弹幕前缀不对被拒", res6.get("ok") is False)
+
     print()
     print("RESULT:", "ALL PASSED" if all(results) else f"SOME FAILED ({results.count(False)})")
     return 0 if all(results) else 1

@@ -28,6 +28,7 @@ from astrbot.api.event import AstrMessageEvent
 from astrbot.api.event.filter import command
 from astrbot.core.star.filter.command import GreedyStr
 
+from .core.bili_cookie import resolve_bilibili_cookie
 from .core.danmaku import DanmakuService, credential_from_cookie
 from .core.models import SOURCE_BOT, SOURCE_DANMAKU
 from .core.music import build_music_service
@@ -108,7 +109,12 @@ class Main(Star):
             self.music = build_music_service(self.cfg, self._session)
 
             room_id = int(self.cfg.get("room_id") or 0)
-            credential = credential_from_cookie(str(self.cfg.get("bilibili_cookie") or ""))
+            cookie = resolve_bilibili_cookie(
+                str(self.cfg.get("bilibili_cookie") or ""),
+                data_dir=self.data_dir,
+                allow_borrow=bool(self.cfg.get("borrow_bilibili_cookie", True)),
+            )
+            credential = credential_from_cookie(cookie)
             self.danmaku = DanmakuService(
                 room_id=room_id,
                 credential=credential,
@@ -118,6 +124,7 @@ class Main(Star):
             self.panel = PanelService(
                 self.queue, self.player, self.music, self.danmaku,
                 urls_provider=self._overlay_urls,
+                simulate=self._simulate_danmaku,
             )
 
             self.overlay = OverlayServer(
@@ -237,6 +244,32 @@ class Main(Star):
         logger.info(
             f"弹幕点歌 {'成功' if ok else '失败'}: {message.username} -> {keyword!r} | {detail}"
         )
+        return ok, detail
+
+    async def _simulate_danmaku(self, text: str, username: str = "测试观众") -> Dict[str, Any]:
+        """面板调试用: 伪造一条弹幕, 走真实的「前缀解析 → 搜歌 → 入队 → 开播」流程。
+
+        直播还没开始/没人发弹幕时, 用它就能验证整条链路(不需要真的开播)。
+        """
+        class _FakeMessage:
+            pass
+
+        message = _FakeMessage()
+        message.text = str(text or "")
+        message.username = str(username or "测试观众")
+        message.uid = 0
+        # 清掉该用户的限流记录, 方便连续模拟
+        self._danmaku_last.pop(f"name:{message.username}", None)
+        result = await self._on_danmaku(message)
+        if result is None:
+            return {"ok": False, "error": "这条弹幕没有触发点歌（前缀不对或功能已关闭）"}
+        ok, detail = result
+        return {
+            "ok": ok,
+            "detail": detail,
+            "queued": len(self.queue.waiting),
+            "current": self.queue.current.song.title if self.queue.current else None,
+        }
 
     def _is_allowed_bot_request(self, event: AstrMessageEvent) -> bool:
         if event.is_admin():

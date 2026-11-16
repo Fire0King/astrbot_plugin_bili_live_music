@@ -2,7 +2,7 @@ name: astrbot_plugin_bili_live_music
 display_name: B站直播点歌台
 desc: B站直播间弹幕点歌：多音源搜索、队列与冷却、OBS 播放层（三种布局）与控制面板，音频由 OBS 浏览器源播出。
 short_desc: B站直播弹幕点歌 + OBS 播放层
-version: v1.0.0
+version: v1.1.0
 author: Fire_King
 repo: https://github.com/Fire0King/astrbot_plugin_bili_live_music
 astrbot_version: ">=4.16,<5"

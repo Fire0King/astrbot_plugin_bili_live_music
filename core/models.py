@@ -81,6 +81,7 @@ class QueueItem:
     requested_at: float = field(default_factory=time.time)
     status: str = "waiting"          # waiting / playing / done / skipped / failed
     note: str = ""                   # 失败原因等
+    retried: bool = False            # 直链失败后是否已经换链重试过一次
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -92,6 +93,7 @@ class QueueItem:
             "requested_at": self.requested_at,
             "status": self.status,
             "note": self.note,
+            "retried": self.retried,
         }
 
     @classmethod
@@ -105,6 +107,7 @@ class QueueItem:
             requested_at=float(data.get("requested_at") or time.time()),
             status=str(data.get("status") or "waiting"),
             note=str(data.get("note") or ""),
+            retried=bool(data.get("retried", False)),
         )
         return item
 

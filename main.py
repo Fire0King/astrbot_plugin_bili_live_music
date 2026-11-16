@@ -40,7 +40,7 @@ from .core.queue_manager import QueueManager, QueueSettings
 from .core.store import QueueStore
 
 PLUGIN_NAME = "astrbot_plugin_bili_live_music"
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 plugin_dir = Path(__file__).parent
 
 # 管理员子命令(其余内容都按"点歌 歌名"处理)
@@ -107,6 +107,8 @@ class Main(Star):
         try:
             self._session = aiohttp.ClientSession()
             self.music = build_music_service(self.cfg, self._session)
+            # 直链临时失效时, 让播放器可以"换一条链重试一次"
+            self.player.resolver = self.music.resolve
 
             room_id = int(self.cfg.get("room_id") or 0)
             cookie = resolve_bilibili_cookie(

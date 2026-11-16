@@ -37,16 +37,28 @@ class PlayerSettings:
 
 
 class PlayerService:
-    def __init__(self, queue, hub, settings: Optional[PlayerSettings] = None):
+    def __init__(self, queue, hub, settings: Optional[PlayerSettings] = None, resolver=None):
         self.queue = queue
         self.hub = hub
         self.settings = settings or PlayerSettings()
+        # resolver(song) -> 换一条可用直链; 用于"直链临时失效时换链重试"
+        self.resolver = resolver
         self.status = STATUS_IDLE
         self.position_secs = 0.0
         self.error = ""
         self._load_started_at = 0.0
         self._last_broadcast = 0.0
+        self._play_seq = 0
         self._tick_task: Optional[asyncio.Task] = None
+        self._tasks: set = set()
+
+    def _spawn(self, coro) -> None:
+        try:
+            task = asyncio.create_task(coro)
+        except RuntimeError:
+            return
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     # ---------------- 生命周期 ----------------
 
@@ -105,6 +117,15 @@ class PlayerService:
         """队列被外部修改(面板操作)后立即推一次状态"""
         self._broadcast_state(force=True)
 
+    def _emit_play(self, item) -> None:
+        """下发播放指令, 并带上自增序号。
+
+        序号的作用: 换链重试/切歌时, 旧音源被中断会再发一次 error/ended,
+        这些"过期事件"带着旧序号回来时直接丢弃, 不会把新的一次播放判死。
+        """
+        self._play_seq += 1
+        self.hub.broadcast({"type": "play", "item": item.to_dict(), "seq": self._play_seq})
+
     # ---------------- 队列推进 ----------------
 
     async def start_next(self) -> bool:
@@ -121,7 +142,7 @@ class PlayerService:
         self.error = ""
         self._load_started_at = time.time()
         logger.info(f"开始播放: {item.song.display}（{item.requester} 点）")
-        self.hub.broadcast({"type": "play", "item": item.to_dict()})
+        self._emit_play(item)
         self._broadcast_state(force=True)
         return True
 
@@ -132,7 +153,7 @@ class PlayerService:
         self.status = STATUS_LOADING
         self.position_secs = 0.0
         self._load_started_at = time.time()
-        self.hub.broadcast({"type": "play", "item": item.to_dict()})
+        self._emit_play(item)
         self._broadcast_state(force=True)
 
     async def skip(self, reason: str = "跳过") -> bool:
@@ -182,6 +203,14 @@ class PlayerService:
         if not isinstance(message, dict):
             return
         kind = str(message.get("type") or "")
+        # 过期事件(来自已经被替换掉的音源)直接丢弃
+        seq = message.get("seq")
+        if seq is not None:
+            try:
+                if int(seq) != self._play_seq:
+                    return
+            except (TypeError, ValueError):
+                pass
         if kind == "loading":
             self.status = STATUS_LOADING
             self._load_started_at = time.time()
@@ -199,15 +228,38 @@ class PlayerService:
         elif kind == "ended":
             self._finish_current("done")
         elif kind == "error":
-            self._finish_current("failed", str(message.get("message") or "播放失败"))
+            # 直链偶尔会临时失效(第三方节点/CDN), 先换一条链重试一次再放弃
+            self._spawn(self._handle_play_error(str(message.get("message") or "播放失败")))
         self._broadcast_state()
+
+    async def _handle_play_error(self, note: str) -> None:
+        item = self.queue.current
+        if item is None:
+            return
+        if self.resolver is not None and not item.retried:
+            item.retried = True
+            logger.warning(f"播放失败({note}), 尝试换一条直链重试: {item.song.display}")
+            try:
+                resolved = await self.resolver(item.song)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"换链重试失败: {e}")
+                resolved = None
+            if resolved is not None and resolved.url and resolved.url != item.song.url:
+                item.song = resolved
+                self.status = STATUS_LOADING
+                self.position_secs = 0.0
+                self._load_started_at = time.time()
+                self._emit_play(item)
+                self._broadcast_state(force=True)
+                return
+        self._finish_current("failed", note)
 
     def on_client_connected(self, role: str) -> None:
         """播放器页连上(或重连): 把当前状态和正在播的歌再推一遍, 便于页面自愈。"""
         self.hub.broadcast({"type": "role", "role": role, "backend": "browser"})
         if self.queue.current is not None:
             if self.status in (STATUS_LOADING, STATUS_PLAYING, STATUS_PAUSED):
-                self.hub.broadcast({"type": "play", "item": self.queue.current.to_dict()})
+                self._emit_play(self.queue.current)
         self._broadcast_state(force=True)
         self.hub.broadcast({"type": "volume", "volume": int(self.queue.volume)})
 
@@ -224,6 +276,8 @@ class PlayerService:
         self.status = STATUS_IDLE
         self.position_secs = 0.0
         self.error = "" if result == "done" else (note or "播放失败")
+        # 让页面立刻停掉旧音频(否则换链重试/跳过之后, 页面还在放上一首)
+        self.hub.broadcast({"type": "stop"})
 
     # ---------------- 周期检查 ----------------
 

@@ -162,6 +162,7 @@ async def test_panel():
     await player.tick()
     player.on_client_message("player", {"type": "ended"})
     check("ended 透传到播放器", queue.history and queue.history[-1].result == "done")
+    check("快照里带播放历史", len(panel.snapshot()["history"]) >= 1)
 
     # 模拟弹幕
     simulated = []
@@ -208,6 +209,18 @@ class DummyPanel:
 
 async def test_overlay_server():
     import aiohttp
+
+    # 页面静态检查: 占位符与关键逻辑都在, 且没有误写入的字面转义
+    overlay_html = (ROOT / "pages" / "overlay.html").read_text(encoding="utf-8")
+    panel_html = (ROOT / "pages" / "panel.html").read_text(encoding="utf-8")
+    check("overlay 有字体占位符", "__FONT_URL__" in overlay_html)
+    check("overlay 有 WS 路径占位符", "__WS_PATH__" in overlay_html)
+    check("overlay 换源时忽略旧 error", "expectedSrc" in overlay_html and "currentSrc" in overlay_html)
+    check("overlay 事件带序号", "currentSeq" in overlay_html and "message.seq = currentSeq" in overlay_html)
+    check("overlay 没有字面转义残留", "`n" not in overlay_html)
+    check("panel 有路由前缀占位符", "__BASE_PATH__" in panel_html)
+    check("panel 有模拟弹幕入口", "simulate_danmaku" in panel_html)
+    check("panel 有播放历史区域", "historyBody" in panel_html)
 
     hub = OverlayHub()
     panel = DummyPanel()

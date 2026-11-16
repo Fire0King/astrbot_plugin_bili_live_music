@@ -92,6 +92,14 @@
     </table>
   </div>
 
+  <div class="card">
+    <h2>最近播放</h2>
+    <table>
+      <thead><tr><th style="width:40px">#</th><th>歌曲</th><th style="width:120px">点歌人</th><th style="width:90px">结果</th></tr></thead>
+      <tbody id="historyBody"><tr><td colspan="4" class="muted">还没有记录</td></tr></tbody>
+    </table>
+  </div>
+
   <div class="grid2">
     <div class="card">
       <h2>搜索并手动点歌（绕过冷却与单人上限）</h2>
@@ -211,6 +219,26 @@
             <button onclick="act('remove', {index:${index}})">删除</button>
           </td>`;
         body.appendChild(tr);
+      });
+    }
+
+    const history = Array.isArray(state.history) ? state.history : [];
+    const hb = $("historyBody");
+    hb.innerHTML = "";
+    if (!history.length) {
+      hb.innerHTML = '<tr><td colspan="4" class="muted">还没有记录</td></tr>';
+    } else {
+      const labels = { done: ["播完", "ok"], skipped: ["跳过", "warn"], failed: ["失败", "err"] };
+      history.slice().reverse().forEach((entry, index) => {
+        const item = entry.item || {};
+        const s = item.song || {};
+        const [text, level] = labels[entry.result] || [entry.result || "-", ""];
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${index + 1}</td>
+          <td>${esc(s.title)} <span class="muted">· ${esc(s.artist)}</span></td>
+          <td>${esc(item.requester)}</td>
+          <td><span class="tag ${level}">${esc(text)}</span></td>`;
+        hb.appendChild(tr);
       });
     }
 

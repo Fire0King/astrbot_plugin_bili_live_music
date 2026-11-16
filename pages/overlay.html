@@ -108,6 +108,8 @@
   let state = null;
   let lastProgressSent = 0;
   let currentItemId = "";
+  let expectedSrc = "";
+  let currentSeq = 0;
 
   const fmt = (secs) => {
     secs = Math.max(0, Math.floor(secs || 0));
@@ -171,7 +173,13 @@
   }
 
   function send(message) {
-    if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(message));
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    // 播放事件带上当前序号: 换链/切歌后, 旧音源的迟到事件会被服务端丢弃
+    if (["loading", "playing", "progress", "ended", "error"].includes(message.type) &&
+        message.seq === undefined) {
+      message.seq = currentSeq;
+    }
+    ws.send(JSON.stringify(message));
   }
 
   function connect() {
@@ -208,6 +216,7 @@
         break;
       case "play":
         if (!data.item) break;
+        currentSeq = Number(data.seq || 0);
         playItem(data.item);
         break;
       case "pause":
@@ -217,12 +226,13 @@
         if (isPlayer && audio.src) audio.play().catch(() => {});
         break;
       case "stop":
-        if (isPlayer) { audio.pause(); audio.removeAttribute("src"); audio.load(); }
+        if (isPlayer) { expectedSrc = ""; audio.pause(); audio.removeAttribute("src"); audio.load(); }
         break;
       case "role":
         // 服务器说"你不是播放器"(已有别的播放页在放音频)时, 立刻静音, 避免双重声音
         if (data.role !== "player" && isPlayer) {
           isPlayer = false;
+          expectedSrc = "";
           audio.pause();
           audio.removeAttribute("src");
           audio.load();
@@ -238,16 +248,20 @@
     currentItemId = item.item_id || "";
     if (!isPlayer) { render(); return; }
     const song = item.song || {};
+    const seq = currentSeq;
     if (!song.url) {
-      send({ type: "error", itemId: currentItemId, message: "no_url" });
+      send({ type: "error", itemId: currentItemId, message: "no_url", seq: seq });
       return;
     }
-    send({ type: "loading", itemId: currentItemId });
+    send({ type: "loading", itemId: currentItemId, seq: seq });
     audio.pause();
+    expectedSrc = song.url;
     audio.src = song.url;
     audio.load();
-    audio.play().catch((err) => {
-      send({ type: "error", itemId: currentItemId, message: String(err && err.message || err) });
+    audio.play().catch(() => {
+      // play() 被拒可能是自动播放策略、也可能是换源时旧 promise 被中断;
+      // 真正的媒体加载失败由下面的 audio "error" 事件上报, 这里不再单独发 error,
+      // 否则换链重试的过渡期会被误判成"播放失败"
     });
   }
 
@@ -255,7 +269,12 @@
     audio.addEventListener("loadedmetadata", () => send({ type: "playing", itemId: currentItemId }));
     audio.addEventListener("playing", () => send({ type: "playing", itemId: currentItemId }));
     audio.addEventListener("ended", () => send({ type: "ended", itemId: currentItemId }));
-    audio.addEventListener("error", () => send({ type: "error", itemId: currentItemId, message: "audio_error" }));
+    audio.addEventListener("error", () => {
+      // 换链重试时会主动替换 src, 旧请求被中断也会触发 error —— 只上报"当前源"的失败
+      const active = audio.currentSrc || audio.src || "";
+      if (!expectedSrc || active !== expectedSrc) return;
+      send({ type: "error", itemId: currentItemId, message: "audio_error" });
+    });
     audio.addEventListener("timeupdate", () => {
       const now = Date.now();
       if (now - lastProgressSent < 1000) return;

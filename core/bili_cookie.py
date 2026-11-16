@@ -16,6 +16,15 @@ from astrbot.api import logger
 
 # 需要的字段(SESSDATA 必填, 其余用于过风控)
 _BILI_COOKIE_KEYS = ("sessdata", "bili_jct", "buvid3", "dedeuserid", "buvid4", "sid")
+# 拼回 Cookie 时要用 B 站认的名字(大小写敏感), 否则下游解析不到 DedeUserID
+_BILI_COOKIE_NAMES = {
+    "sessdata": "SESSDATA",
+    "bili_jct": "bili_jct",
+    "buvid3": "buvid3",
+    "dedeuserid": "DedeUserID",
+    "buvid4": "buvid4",
+    "sid": "sid",
+}
 
 
 def extract_bili_cookie_from_file(path: Optional[Path]) -> str:
@@ -42,7 +51,7 @@ def extract_bili_cookie_from_file(path: Optional[Path]) -> str:
                 for key in _BILI_COOKIE_KEYS:
                     val = lower.get(key)
                     if isinstance(val, str) and val.strip():
-                        name = "SESSDATA" if key == "sessdata" else key
+                        name = _BILI_COOKIE_NAMES.get(key, key)
                         pairs.append(f"{name}={val.strip()}")
                 if pairs:
                     found.append("; ".join(pairs))

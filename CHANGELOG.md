@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.1.1 — 2026-11-16
+
+**关键修复：弹幕传输层换掉 curl_cffi（原实现会直接崩进程）**
+
+- 🐛 `bilibili_api` 的 `LiveDanmaku` 用 **curl_cffi** 做 WebSocket，在本环境收到弹幕时
+  `ws_recv` 触发 `Fatal Python error: Aborted`（C 层崩溃，整个 AstrBot 会挂）。
+  实测 100% 复现（faulthandler 栈指向 `curl_cffi/curl.py: ws_recv`）。
+  → 新增 `core/bili_ws.py`：**aiohttp 版弹幕客户端**，HTTP 仍走 bilibili_api（自带 wbi 签名，
+  拉 token 不会被 -352），只替换 WebSocket 与协议解析
+- 🐛 压缩帧解析修正：brotli/zlib 解压后的内容仍是「16 字节包头 + JSON」的序列，
+  必须再按包头切分（之前"连上了却 0 条弹幕"就是这个原因）
+- 🐛 借用凭据的 Cookie 名大小写修正（`dedeuserid` → `DedeUserID`）；
+  只有 SESSDATA 没有 uid 的"半套凭据"会认证超时 → 现在自动退回匿名连接
+- ✅ 服务器实测：直播间 545068 连接成功，**110 秒内收到 376 条真实弹幕**，
+  容器 `RestartCount=0`（不再崩溃）
+- 测试增至 **273 项**（新增弹幕协议包编解码/解压/指令归一/认证/收包派发 20 项）
+
 ## 1.1.0 — 2026-11-16
 
 - ✨ **播放失败自动换链重试**：直链偶尔失效（第三方节点/CDN 抖动）时，先重新解析一条链重放一次，

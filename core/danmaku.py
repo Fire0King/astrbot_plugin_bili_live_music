@@ -82,16 +82,16 @@ def credential_from_cookie(cookie: str) -> Optional[Any]:
         if "=" not in item:
             continue
         key, value = item.split("=", 1)
-        pairs[key.strip()] = value.strip()
+        pairs[key.strip().lower()] = value.strip()
     try:
         from bilibili_api import Credential
     except Exception:  # noqa: BLE001
         return None
     try:
         return Credential(
-            sessdata=pairs.get("SESSDATA") or None,
+            sessdata=pairs.get("sessdata") or None,
             bili_jct=pairs.get("bili_jct") or None,
-            dedeuserid=pairs.get("DedeUserID") or None,
+            dedeuserid=pairs.get("dedeuserid") or None,
             buvid3=pairs.get("buvid3") or None,
             ac_time_value=pairs.get("ac_time_value") or None,
         )
@@ -198,8 +198,15 @@ class DanmakuService:
 
     @staticmethod
     def _default_factory(room_id: int, credential: Any) -> Any:
-        from bilibili_api import live  # 延迟导入: 未安装时插件其他功能仍可用
-        return live.LiveDanmaku(room_display_id=room_id, credential=credential)
+        """默认用 aiohttp 版弹幕客户端。
+
+        不用 bilibili_api 的 LiveDanmaku: 它的 WebSocket 走 curl_cffi, 在部分容器里
+        收到消息会 C 层 abort(整个进程挂掉, 实测必现)。HTTP 部分仍复用 bilibili_api
+        (它带 wbi 签名, 拉弹幕服务器 token 不会被 -352 风控)。
+        """
+        from .bili_ws import AiohttpLiveDanmaku
+
+        return AiohttpLiveDanmaku(room_display_id=room_id, credential=credential)
 
     async def _supervise(self) -> None:
         delay_index = 0

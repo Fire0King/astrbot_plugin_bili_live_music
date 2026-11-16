@@ -50,6 +50,16 @@ AstrBot 通常跑在**云端服务器**上（没有声卡），所以音频不�
 **OBS 浏览器源**在主播电脑上播放；服务器只负责"排什么歌、放到第几首、进度多少"。
 这也是原 Koishi 插件推荐的 `browser` 模式。VLC 后端因此不实现。
 
+## 🔧 弹幕传输层说明
+
+B 站弹幕的 WebSocket **没有**用 `bilibili_api` 的 `LiveDanmaku`：它底层是 **curl_cffi**，
+在部分容器环境里收到消息会 C 层 `Aborted`（整个进程挂掉，实测必现）。
+本插件改用 `core/bili_ws.py`（aiohttp 实现）：HTTP 接口（房间号/弹幕服务器 token）仍复用
+`bilibili_api` 以通过 wbi 签名与风控，只把 WebSocket 和协议解析换成纯 Python。
+
+另外 B 站的压缩帧解压后仍是「16 字节包头 + JSON」的序列，解析时必须再按包头切一次包，
+否则会"连上了却一条弹幕都收不到"。
+
 ## 📦 安装
 
 1. 安装依赖（容器内一般已有 aiohttp；缺 `bilibili-api-python` 时装一下）：

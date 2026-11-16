@@ -40,7 +40,7 @@ from .core.queue_manager import QueueManager, QueueSettings
 from .core.store import QueueStore
 
 PLUGIN_NAME = "astrbot_plugin_bili_live_music"
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 plugin_dir = Path(__file__).parent
 
 # 管理员子命令(其余内容都按"点歌 歌名"处理)

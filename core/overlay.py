@@ -213,7 +213,9 @@ class OverlayServer:
         return f"{self.base_url()}/?token={self.settings.token}"
 
     def font_url(self) -> str:
-        return f"{self.base_url()}/font.ttf"
+        # 用相对路径: 页面从哪个地址打开就向哪个地址要字体,
+        # 这样容器内自测(127.0.0.1)、OBS(公网 IP)、反向代理(域名)都不会因跨地址卡住
+        return f"{self.settings.base_path}/font.ttf"
 
     def _authorized(self, request: Any) -> bool:
         token = self.settings.token

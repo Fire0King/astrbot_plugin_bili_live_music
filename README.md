@@ -20,6 +20,22 @@
 - 💾 **状态持久化**：等待队列/历史/音量落盘，重启后恢复；上次没播完的放回队首
 - 🛡️ **健壮性**：加载超时自动跳过坏歌、播放报错自动跳过、直链失效换候选、面板操作异常不影响播放
 
+## 📸 效果预览
+
+OBS 播放层（standard 640×240，实拍自服务器上的真实播放状态）：
+
+![standard](docs/screenshots/overlay_standard.png)
+
+mini（520×104）与 sidebar（300×667）：
+
+![mini](docs/screenshots/overlay_mini.png)
+
+![sidebar](docs/screenshots/overlay_sidebar.png)
+
+控制面板（队列 / 搜索点歌 / 音量 / OBS 地址一键复制）：
+
+![panel](docs/screenshots/panel.png)
+
 ## 🏗 架构：为什么音频在 OBS 里播
 
 ```
